@@ -1,5 +1,5 @@
 const got = require('got')
-const QRCode = require('qrcode')
+// const QRCode = require('qrcode')
 const fs = require('fs-extra')
 const path = require('path')
 const open = require('open')
@@ -14,18 +14,59 @@ const querystring = require('querystring')
 class JDLogin {
 	constructor() {}
 
+	async getUserInfo() {
+		const isExist = fs.existsSync(path.resolve(__dirname, './userData.json'))
+		if (isExist) {
+			const userData = fs.readJsonSync(path.resolve(__dirname, './userData.json'))
+			const cardInfo = await this.checkCookie(userData)
+			if (cardInfo) {
+				console.log(`已登录，购物车共计${cardInfo.cartNum}件商品`)
+				return { userData }
+			} else {
+				return await this.start()
+			}
+		} else {
+			return await this.start()
+		}
+	}
+
+	async checkCookie(userData) {
+		const { resultData } = await got
+			.post('https://api.m.jd.com/api', {
+				headers: {
+					...userData.headers,
+					origin: 'https://cart.jd.com',
+					referer: 'https://cart.jd.com/',
+					cookie: userData.cookieData
+				},
+				searchParams: {
+					functionId: 'pcCart_jc_getCurrentCart',
+					appid: 'JDC_mall_cart',
+					loginType: '3',
+					body: JSON.stringify({ serInfo: { area: this.area, 'user-key': null }, cartExt: { specialId: 1 } })
+				}
+			})
+			.json()
+
+		if (resultData?.errInfo?.errCode === 0) {
+			return resultData.cartInfo
+		} else {
+			return false
+		}
+	}
+
 	async start() {
-		// const cookies = []
+		// 获取登录二维码
 		const QRresponse = await got.get(`https://qr.m.jd.com/show?appid=133&size=147&t=${new Date().getTime()}`, {
 			responseType: 'buffer'
 		})
 		const setCookies = QRresponse.headers['set-cookie']
-		console.log(setCookies)
-
-		fs.writeFile(path.resolve('./login.png'), QRresponse.body, 'binary', function (err) {
+		fs.writeFile(path.resolve(__dirname, './login.png'), QRresponse.body, 'binary', function (err) {
 			console.log('保存图片成功')
 		})
-		open('./templata.html', 'chrome')
+
+		// 打开游览器扫描二维码
+		open(path.resolve(__dirname, './templata.html'), 'chrome')
 		const cookiesObj = cookieParse(QRresponse)
 
 		let headers = {
@@ -34,6 +75,7 @@ class JDLogin {
 			accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
 			connection: 'keep-alive'
 		}
+
 		// 扫码获取 ticket
 		const ticket = await this.checkScan(
 			{
@@ -42,17 +84,13 @@ class JDLogin {
 			},
 			headers
 		)
-		console.log('ticket', ticket)
 
 		// 开始登陆
-		// { p3p, cookieData: newcookieData, unick: cookies.unick }
 		const loginInfo = await this.login(ticket, setCookies, headers)
-		console.log('登陆成功', loginInfo)
 		headers.p3p = loginInfo.p3p
 
 		// 获取实体游览器信息
 		const inputs = await this.getBrowerInfo()
-
 		const userData = {
 			cookiesObj: loginInfo.cookiesObj,
 			cookies: setCookies,
@@ -63,10 +101,14 @@ class JDLogin {
 			loginTime: moment().format('YYYY-MM-DD HH:mm:ss'),
 			...inputs
 		}
+
+		// 登录信息保存到本地
 		fs.outputFileSync(path.resolve(__dirname, 'userData.json'), JSON.stringify(userData, null, '    '))
-		console.log({ userData })
+		console.log('登陆成功')
+		return { userData }
 	}
 
+	// 检测二维码是否被扫描
 	checkScan = async (params, headers) => {
 		return new Promise((resolve, reject) => {
 			const timer = setInterval(async () => {
@@ -90,8 +132,6 @@ class JDLogin {
 					}
 				})
 				eval('callback.' + res.body)
-				console.log(result)
-
 				if (result.code === 200) {
 					clearInterval(timer)
 					resolve(result.ticket)
@@ -137,9 +177,7 @@ class JDLogin {
 		})
 		const page = await browser.newPage()
 		await page.goto('https://passport.jd.com/new/login.aspx')
-		console.log('等待dom')
 		await Promise.all([page.waitForSelector('#eid'), page.waitForSelector('#sessionId')])
-		console.log('页面抓取完成，开始分析页面')
 		const inputs = await page.evaluate(() => {
 			return new Promise((resolve, reject) => {
 				const timer = setInterval(() => {
@@ -153,11 +191,12 @@ class JDLogin {
 			})
 		})
 		await browser.close()
-		console.log('inputs', inputs)
+		console.log('eid fp 获取完成')
 		return inputs
 	}
 }
 
-const client = new JDLogin()
-client.start()
-// client.getBrowerInfo()
+module.exports = new JDLogin()
+// const client = new JDLogin()
+// client.getUserInfo()
+// client.getUserInfo()

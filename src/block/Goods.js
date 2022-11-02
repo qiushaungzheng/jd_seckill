@@ -2,14 +2,13 @@ const got = require('got')
 const { random, cookieParse } = require('./uilt')
 
 class Goods {
-	constructor() {
+	constructor(userData) {
 		this.userData = require('./userData.json')
 		this.area = '1_72_55668'
 	}
 
 	async start() {
-		const res = await this.getUserCartInfo(userData)
-		console.log(res)
+		const res = await this.getUserCartInfo()
 	}
 
 	async getGoodsDelite(goodId) {
@@ -45,8 +44,8 @@ class Goods {
 		const result = await got
 			.get('http://c0.3.cn/stocks', {
 				header: {
-					...userData.headers,
-					Cookie: userData.cookieData,
+					...this.userData.headers,
+					Cookie: this.userData.cookieData,
 					'Content-Type': 'text/plain;charset=GBK'
 				},
 				searchParams: {
@@ -65,8 +64,8 @@ class Goods {
 		const result = await got
 			.get('https://yx.3.cn/service/info.action', {
 				header: {
-					...userData.headers,
-					Cookie: userData.cookieData,
+					...this.userData.headers,
+					Cookie: this.userData.cookieData,
 					'Content-Type': 'text/plain;charset=GBK'
 				},
 				searchParams: {
@@ -97,13 +96,10 @@ class Goods {
 				}
 			})
 			.json()
-
-		console.log(result.resultData)
 		return this.getGoodInfo(result.resultData)
 	}
 	// 解析购物车商品信息
 	getGoodInfo(resultData) {
-		const user = this.userData
 		let shopList = []
 		let goodInfo = {}
 
@@ -156,7 +152,7 @@ class Goods {
 			console.log(`${user.unick} 购物车已空${shopList.length}`)
 			return true
 		}
-		console.log('shopList',shopList)
+		console.log('shopList', shopList)
 
 		let url = 'https://api.m.jd.com/api'
 		let body = {
@@ -231,4 +227,4 @@ class Goods {
 
 const a = new Goods()
 
-a.getUserCartInfo()
+a.getGoodsDelite(100022463892)

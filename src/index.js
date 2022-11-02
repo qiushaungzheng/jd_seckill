@@ -1,5 +1,6 @@
-import JDLogin from './block/login'
 
+const clientLogin = require('./block/login')
+const Goods = require('./block/Goods')
 class JDClient {
 
 	constructor(roomID) {
@@ -7,8 +8,9 @@ class JDClient {
     }
     
 	async start() {
-		const jdLoginClient = new JDLogin()
-		const cookies = await jdLoginClient.login()	
+		const { userData } = await clientLogin.getUserInfo()
+		const clintGoods = new Goods(userData)
+		
 	}
 
 
